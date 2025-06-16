@@ -1,0 +1,26 @@
+{
+  "canisters": {
+    "susuchain-app-backend": {
+      "main": "src/susuchain-app-backend/main.mo",
+      "type": "motoko"
+    },
+    "susuchain-app-frontend": {
+      "dependencies": [
+        "susuchain-app-backend"
+      ],
+      "source": [
+        "src/susuchain-app-frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "susuchain-app-frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
