@@ -1,26 +1,27 @@
 {
+  "version": 1,
   "canisters": {
-    "susuchain-app-backend": {
-      "main": "src/susuchain-app-backend/main.mo",
-      "type": "motoko"
+    "susuchain": {
+      "type": "motoko",
+      "main": "src/susuchain-app-backend/susuchain.mo"
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:8000",
+      "type": "ephemeral"
     },
-    "susuchain-app-frontend": {
-      "dependencies": [
-        "susuchain-app-backend"
-      ],
-      "source": [
-        "src/susuchain-app-frontend/dist"
-      ],
-      "type": "assets",
-      "workspace": "susuchain-app-frontend"
+    "ic": {
+      "providers": ["https://ic0.app"],
+      "type": "persistent"
     }
   },
   "defaults": {
     "build": {
-      "args": "",
-      "packtool": ""
+      "args": ""
+    },
+    "deploy": {
+      "timeout_seconds": 600
     }
-  },
-  "output_env_file": ".env",
-  "version": 1
+  }
 }
