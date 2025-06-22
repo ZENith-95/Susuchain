@@ -28,8 +28,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     navigate("/");
   };
 
-  const getIcon = (iconName: string): JSX.Element | null => {
-    const icons: { [key: string]: JSX.Element } = {
+  const getIcon = (iconName: string): React.ReactElement | null => {
+    const icons: { [key: string]: React.ReactElement } = {
       home: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path

@@ -9,7 +9,8 @@ function getCanisterIds() {
     const canisterIdsPath = resolve(__dirname, '../../.dfx/local/canister_ids.json');
     const canisterIds = JSON.parse(readFileSync(canisterIdsPath, 'utf-8'));
     return Object.entries(canisterIds).reduce((acc: Record<string, string>, [key, value]) => {
-      acc[`process.env.CANISTER_ID_${key.toUpperCase()}`] = JSON.stringify((value as any).local);
+      const envKey = `process.env.CANISTER_ID_${key.toUpperCase().replace(/-/g, '_')}`;
+      acc[envKey] = JSON.stringify((value as any).local);
       return acc;
     }, {} as Record<string, string>);
   } catch (e) {
@@ -20,10 +21,11 @@ function getCanisterIds() {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react({ jsxRuntime: 'automatic' })],
   define: {
     'process.env.DFX_NETWORK': JSON.stringify(process.env.DFX_NETWORK || 'local'),
     ...getCanisterIds(),
+    global: {},
   },
   server: {
     host: true,
@@ -34,5 +36,8 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
+  },
+optimizeDeps: {
+    include: ['react', 'react-dom/client'],
   },
 });
