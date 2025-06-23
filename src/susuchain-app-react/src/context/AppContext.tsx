@@ -4,6 +4,7 @@ import { Actor, HttpAgent } from "@dfinity/agent";
 import { Principal } from "@dfinity/principal";
 import { idlFactory, _SERVICE } from "../../../declarations/susuchain/susuchain.did.js";
 import { canisterId as backendCanisterId } from "../../../declarations/susuchain";
+import { AuthClient } from "@dfinity/auth-client"; // Re-add AuthClient import
 
 interface UserProfile {
   id: Principal;
@@ -97,14 +98,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
+
   const login = async (walletType: "plug" | "internetIdentity") => {
     try {
-      const agent = new HttpAgent({ host: "http://localhost:8000" }); // Adjust host for deployment
+      const agent = new HttpAgent({ host: "http://localhost:4943" }); // Adjust host for deployment
       if (process.env.DFX_NETWORK === "local") {
         agent.fetchRootKey();
       }
+      console.log("backendCanisterId:", backendCanisterId);
+      console.log("CANISTER_ID_INTERNET_IDENTITY:", process.env.CANISTER_ID_INTERNET_IDENTITY);
 
       if (walletType === "plug") {
+        console.log("Attempting Plug Wallet login...");
+        if (!(window as any).ic || !(window as any).ic.plug) {
+          console.error("Plug Wallet API (window.ic.plug) not found.");
+          showToast("Plug Wallet extension not detected or not enabled.", "error");
+          throw new Error("Plug Wallet API not found.");
+        }
         const whitelist = [backendCanisterId];
         const hasAllowed = await (window as any).ic.plug.requestConnect({ whitelist });
         if (!hasAllowed) {
@@ -147,29 +157,28 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           throw new Error(`Failed to register user: ${errorMsg}`);
         }
       } else if (walletType === "internetIdentity") {
-        const authClient = await (window as any).II.AuthClient.create();
+        console.log("Attempting Internet Identity login...");
+        const authClient = await AuthClient.create();
         await authClient.login({
           identityProvider:
             process.env.DFX_NETWORK === "local"
-              ? `http://localhost:8000/?canisterId=${process.env.CANISTER_ID_INTERNET_IDENTITY}`
+              ? `http://localhost:4943/?canisterId=${process.env.CANISTER_ID_INTERNET_IDENTITY}`
               : "https://identity.ic0.app",
           onSuccess: async () => {
             const identity = authClient.getIdentity();
             const principal = identity.getPrincipal();
+            agent.replaceIdentity(identity); // Set identity on the agent
             const actor = Actor.createActor<_SERVICE>(idlFactory, {
               agent,
               canisterId: backendCanisterId,
-              // @ts-ignore
-              identity, // 'identity' is a valid property for ActorConfig when using a custom identity
             });
             setBackendActor(actor);
             setUser({
               id: principal,
               walletType: "#internetIdentity",
               principal: principal.toText(),
-              balance: 0, // Initial balance, will be fetched after registration/login
+              balance: 0,
             });
-            // Register user on the backend and fetch initial data
             const registerResult = (await actor.registerUser({ internetIdentity: null })) as RegisterUserResult;
             if ("ok" in registerResult) {
               const userProfile = registerResult.ok;
@@ -179,7 +188,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
                 principal: userProfile.principal.toText(),
                 balance: Number(userProfile.balance),
               });
-              // Fetch dashboard data immediately after successful login/registration
               const dashboardResult = (await actor.getDashboard()) as GetDashboardResult;
               if ("ok" in dashboardResult) {
                 setBalance(Number(dashboardResult.ok.totalBalance));
@@ -202,15 +210,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null);
     setBackendActor(null);
-    // Clear any wallet-specific sessions if necessary
     if ((window as any).ic?.plug) {
       (window as any).ic.plug.disconnect();
     }
-    // For Internet Identity, you might need to clear its session too
-    (window as any).II.AuthClient.create().then((client: any) => client.logout());
+    const authClient = await AuthClient.create();
+    authClient.logout();
   };
 
   const toggleTheme = () => {

@@ -4,24 +4,27 @@
     "susuchain": {
       "type": "motoko",
       "main": "src/susuchain-app-backend/susuchain.mo"
-    }
-  },
-  "networks": {
-    "local": {
-      "bind": "127.0.0.1:8000",
-      "type": "ephemeral"
     },
-    "ic": {
-      "providers": ["https://ic0.app"],
-      "type": "persistent"
+    "internet_identity": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",
+      "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz",
+      "id": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+    },
+    "susuchain-app-react": {
+      "type": "assets",
+      "source": [
+        "src/susuchain-app-react/dist"
+      ],
+      "declarations": {
+        "output": "src/declarations/susuchain-app-react",
+        "node_compatibility": true
+      }
     }
   },
   "defaults": {
     "build": {
       "args": ""
-    },
-    "deploy": {
-      "timeout_seconds": 600
     }
   }
 }
