@@ -1,0 +1,18 @@
+      "init_arg": "(variant { 
+        Init = record { 
+          minting_account = record { 
+            owner = principal \"ulvla-h7777-77774-qaacq-cai\" 
+          }; 
+          initial_values = vec {}; 
+          send_whitelist = vec {}; 
+          transfer_fee = opt record { 
+            e8s = 10_000 : nat64 
+          }; 
+          token_symbol = opt variant { 
+            Text = \"LICP\" 
+          }; 
+          token_name = opt variant { 
+            Text = \"Local ICP\" 
+          }; 
+        } 
+      })"
