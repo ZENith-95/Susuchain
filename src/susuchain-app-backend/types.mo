@@ -1,6 +1,5 @@
 import Trie "mo:base/Trie";
-import HashMap "mo:base/HashMap";
-
+import Principal "mo:base/Principal";
 module {
     public type Account = { owner : Principal; subaccount : ?Blob };
     public type TransfereResult = { #Ok : Nat; #Err : TransferError };
@@ -16,7 +15,7 @@ module {
     };
     public type GroupContributionResponse = {
         groupId : Text;
-        subaccount : Blob;
+        subaccount : Text;
     };
     public type TransferFromArgs = {
         to : Account;
@@ -86,7 +85,7 @@ module {
         #TooOld;
         #InsufficientFunds : { balance : Nat };
     };
-    public type TokenInterface = actor {
+    public type LedgerInterface = actor {
         icrc1_balance_of : shared query Account -> async Nat;
         icrc1_decimals : shared query () -> async Nat8;
         icrc1_fee : shared query () -> async Nat;

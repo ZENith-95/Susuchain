@@ -12,6 +12,7 @@ import Principal "mo:base/Principal";
 import Iter "mo:base/Iter";
 import Blob "mo:base/Blob";
 import Nat8 "mo:base/Nat8";
+import Account "Account";
 
 actor SusuGroupContributions {
     type TransferArg = Types.TransferArg;
@@ -19,6 +20,7 @@ actor SusuGroupContributions {
     // var tokenCanister : Types.TokenInterface = actor (tokenCanister);
     // var groupNotifications : HashMap.HashMap<Text, Types.GroupNotification> = HashMap.HashMap(0, Text.equal, Text.hash);
 
+    private stable var ledgerActor : Types.LedgerInterface = actor ("ucwa4-rx777-77774-qaada-cai") : Types.LedgerInterface;
     func deriveSubaccount(user : Principal) : Blob {
         let userBytes = Principal.toBlob(user);
         var sub = Array.init<Nat8>(32, 0);
@@ -36,14 +38,26 @@ actor SusuGroupContributions {
             };
             case (?group) {
                 if (Array.find<Principal>(group.members, func(p) { p == msg.caller }) == null) return #err("User is not a member of this group");
-                let subaccount = deriveSubaccount(msg.caller);
+                let acc : Types.Account = {
+                    owner = Principal.fromActor(SusuGroupContributions);
+                    subaccount = ?Account.toSubaccount(msg.caller);
+                };
                 let response : Types.GroupContributionResponse = {
                     groupId = groupId;
-                    subaccount = subaccount;
+                    subaccount = Account.toText(acc);
                 };
                 return #ok(response);
             };
         };
+    };
+
+    public shared (msg) func getBalance() : async Nat {
+        let acc : Types.Account = {
+            owner = Principal.fromActor(SusuGroupContributions);
+            subaccount = ?Account.toSubaccount(msg.caller);
+        };
+        var response : Nat = await ledgerActor.icrc1_balance_of(acc);
+        return response;
     };
 
     public func getGroup(groupId : Text) : async Result.Result<Types.SusuGroup, Text> {
