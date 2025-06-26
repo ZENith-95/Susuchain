@@ -21,14 +21,6 @@ actor SusuGroupContributions {
     // var groupNotifications : HashMap.HashMap<Text, Types.GroupNotification> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private stable var ledgerActor : Types.LedgerInterface = actor ("ucwa4-rx777-77774-qaada-cai") : Types.LedgerInterface;
-    func deriveSubaccount(user : Principal) : Blob {
-        let userBytes = Principal.toBlob(user);
-        var sub = Array.init<Nat8>(32, 0);
-        for (i in Iter.range(0, userBytes.size() - 1)) {
-            sub[i] := userBytes[i];
-        };
-        Blob.fromArray(Array.freeze(sub));
-    };
 
     public shared (msg) func contributeToGroup(groupId : Text) : async Result.Result<Types.GroupContributionResponse, Text> {
         let group = susuGroups.get(groupId);
