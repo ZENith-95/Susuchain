@@ -2,15 +2,14 @@ import Array "mo:base/Array";
 import Blob "mo:base/Blob";
 import Char "mo:base/Char";
 import Text "mo:base/Text";
-import Int "mo:base/Int";
 import Iter "mo:base/Iter";
 import Nat8 "mo:base/Nat8";
 import Nat32 "mo:base/Nat32";
 import Principal "mo:base/Principal";
 import Option "mo:base/Option";
 import Result "mo:base/Result";
-
-module {
+// import Sha256 "mo:ed25519";
+module { 
   public type Account = { owner : Principal; subaccount : ?Blob };
   public type ParseError = {
     #malformed : Text;
@@ -346,7 +345,17 @@ module {
       };
     };
   };
+  // public func generateSubaccount(groupId : Text, user : Principal) : Blob {
+  //   let groupBytes = Text.encodeUtf8(groupId);
+  //   let userBytes = Principal.toBlob(user);
 
+  //   // Combine group and user bytes
+  //   let combined = Array.append<Nat8>(Blob.toArray(groupBytes), Blob.toArray(userBytes));
+
+  //   let hashBytes = Blob.toArray(Sha256.fromArray(#sha256, combined));
+
+  //   Blob.fromArray(hashBytes);
+  // };
   public func toSubaccount(p : Principal) : Blob {
     // p blob size can vary, but 29 bytes as most. We preserve it'subaccount size in result blob
     // and it'subaccount data itself so it can be deserialized back to p
