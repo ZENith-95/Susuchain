@@ -6,14 +6,17 @@
   "name": "susuchain-app",
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "prebuild": "npm run prebuild --workspaces --if-present",
+    "prebuild": "dfx generate && npm run prebuild --workspaces --if-present",
     "pretest": "npm run prebuild --workspaces --if-present",
     "start": "npm start --workspaces --if-present",
-    "test": "npm test --workspaces --if-present"
+    "test": "npm test --workspaces --if-present",
+    "dfx:deploy": "dfx deploy --network=local && cd src/susuchain-frontend && npm run build",
+    "dfx:generate": "dfx generate",
+    "dfx:start": "dfx start --clean --background"
   },
   "type": "module",
   "workspaces": [
-    "src/susuchain-app-react"
+    "src/susuchain-frontend"
   ],
   "dependencies": {
     "@dfinity/agent": "^2.4.1",

@@ -2,14 +2,16 @@
 
 import { create } from "zustand"
 import { AuthClient } from "@dfinity/auth-client"
-import { Actor, HttpAgent } from "@dfinity/agent"
+import { HttpAgent, Identity } from "@dfinity/agent"
+import { IDL } from "@dfinity/candid"
+import { createActor, createIdlFactory, getAuthState } from "@/lib/createActor"
 
 interface AuthState {
   principal: string | null
   walletType: "plug" | "ii" | null
   isLoading: boolean
   authClient: AuthClient | null
-  agent: HttpAgent | null
+  identity: Identity | null
   loginII: () => Promise<void>
   loginPlug: () => Promise<void>
   logout: () => Promise<void>
@@ -17,13 +19,10 @@ interface AuthState {
 }
 
 const SUSUCHAIN_CANISTER_ID = process.env.NEXT_PUBLIC_SUSUCHAIN_CANISTER_ID || "rrkah-fqaaa-aaaah-qcwwa-cai"
-const INTERNET_IDENTITY_CANISTER_ID =
-  process.env.NEXT_PUBLIC_INTERNET_IDENTITY_CANISTER_ID || "rdmx6-jaaaa-aaaah-qdrva-cai"
+const INTERNET_IDENTITY_CANISTER_ID = process.env.NEXT_PUBLIC_INTERNET_IDENTITY_CANISTER_ID || "rdmx6-jaaaa-aaaah-qdrva-cai"
 
-// Add validation function
 const validateCanisterId = (canisterId: string): boolean => {
   try {
-    // Basic validation - should be in format xxxxx-xxxxx-xxxxx-xxxxx-xxx
     const principalRegex = /^[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{3}$/
     return principalRegex.test(canisterId)
   } catch {
@@ -31,118 +30,66 @@ const validateCanisterId = (canisterId: string): boolean => {
   }
 }
 
+// Create IDL factory for user registration
+const registerUserIdlFactory = createIdlFactory((IDL) => ({
+  registerUser: IDL.Func(
+    [IDL.Variant({ plug: IDL.Null, internetIdentity: IDL.Null })],
+    [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
+    []
+  ),
+}))
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   principal: null,
   walletType: null,
   isLoading: false,
   authClient: null,
-  agent: null,
-
-  checkAuth: async () => {
-    set({ isLoading: true })
-
-    try {
-      // Check for existing Plug connection
-      if (typeof window !== "undefined" && window.ic?.plug) {
-        const isConnected = await window.ic.plug.isConnected()
-        if (isConnected) {
-          const principal = await window.ic.plug.agent.getPrincipal()
-          set({
-            principal: principal.toString(),
-            walletType: "plug",
-            isLoading: false,
-          })
-          return
-        }
-      }
-
-      // Check for Internet Identity
-      const authClient = await AuthClient.create()
-      const isAuthenticated = await authClient.isAuthenticated()
-
-      if (isAuthenticated) {
-        const identity = authClient.getIdentity()
-        const principal = identity.getPrincipal()
-
-        if (!principal.isAnonymous()) {
-          const agent = new HttpAgent({ identity })
-          set({
-            principal: principal.toString(),
-            walletType: "ii",
-            authClient,
-            agent,
-            isLoading: false,
-          })
-          return
-        }
-      }
-
-      set({ isLoading: false })
-    } catch (error) {
-      console.error("Auth check failed:", error)
-      set({ isLoading: false })
-    }
-  },
+  identity: null,
 
   loginPlug: async () => {
     set({ isLoading: true })
 
     try {
-      if (!window.ic?.plug) {
-        throw new Error("Plug wallet not installed. Please install Plug wallet extension.")
-      }
-
       if (!validateCanisterId(SUSUCHAIN_CANISTER_ID)) {
-        throw new Error("Invalid canister ID configuration. Please check your environment variables.")
+        throw new Error("Invalid canister ID configuration")
       }
 
-      const host = process.env.NODE_ENV === "development" ? "http://localhost:4943" : "https://ic0.app"
+      if (!window.ic?.plug) {
+        throw new Error("Plug wallet not available")
+      }
 
-      const connected = await window.ic.plug.requestConnect({
+      const result = await window.ic.plug.requestConnect({
         whitelist: [SUSUCHAIN_CANISTER_ID],
-        host,
-        timeout: 50000,
+        host: process.env.DFX_NETWORK === "ic" ? "https://ic0.app" : "http://localhost:4943",
       })
 
-      if (!connected) {
+      if (!result) {
         throw new Error("Failed to connect to Plug wallet")
       }
 
       const principal = await window.ic.plug.agent.getPrincipal()
-
       if (!principal || principal.isAnonymous()) {
         throw new Error("Failed to get valid principal from Plug wallet")
       }
 
-      // Register user with backend
       try {
-        const actor = await window.ic.plug.createActor({
+        const actor = await createActor<any>({
           canisterId: SUSUCHAIN_CANISTER_ID,
-          interfaceFactory: ({ IDL }) => {
-            return IDL.Service({
-              registerUser: IDL.Func(
-                [IDL.Variant({ plug: IDL.Null, internetIdentity: IDL.Null })],
-                [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
-                [],
-              ),
-            })
-          },
+          idlFactory: registerUserIdlFactory,
         })
 
         const registerResult = await actor.registerUser({ plug: null })
-
         if ("err" in registerResult) {
           console.warn("User registration warning:", registerResult.err)
-          // Continue anyway - user might already be registered
         }
       } catch (registerError) {
         console.warn("User registration failed:", registerError)
-        // Continue anyway - the main authentication succeeded
       }
 
       set({
         principal: principal.toString(),
         walletType: "plug",
+        identity: principal,
         isLoading: false,
       })
     } catch (error) {
@@ -157,15 +104,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       if (!validateCanisterId(SUSUCHAIN_CANISTER_ID)) {
-        throw new Error("Invalid canister ID configuration. Please check your environment variables.")
+        throw new Error("Invalid canister ID configuration")
       }
 
       const authClient = await AuthClient.create()
-
-      const identityProvider =
-        process.env.NODE_ENV === "development"
-          ? `http://localhost:4943?canisterId=${INTERNET_IDENTITY_CANISTER_ID}`
-          : "https://identity.ic0.app"
+      const identityProvider = process.env.DFX_NETWORK === "ic"
+        ? "https://identity.ic0.app"
+        : `http://localhost:4943?canisterId=${INTERNET_IDENTITY_CANISTER_ID}`
 
       await new Promise<void>((resolve, reject) => {
         authClient.login({
@@ -183,46 +128,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error("Authentication failed - anonymous principal")
       }
 
-      const agent = new HttpAgent({
-        identity,
-        host: process.env.NODE_ENV === "development" ? "http://localhost:4943" : "https://ic0.app",
-      })
-
-      // Only fetch root key in development
-      if (process.env.NODE_ENV === "development") {
-        await agent.fetchRootKey()
-      }
-
-      // Register user with backend
       try {
-        const actor = Actor.createActor(
-          ({ IDL }) =>
-            IDL.Service({
-              registerUser: IDL.Func(
-                [IDL.Variant({ plug: IDL.Null, internetIdentity: IDL.Null })],
-                [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
-                [],
-              ),
-            }),
-          { agent, canisterId: SUSUCHAIN_CANISTER_ID },
-        )
+        const actor = await createActor<any>({
+          canisterId: SUSUCHAIN_CANISTER_ID,
+          idlFactory: registerUserIdlFactory,
+          identity,
+        })
 
         const registerResult = await actor.registerUser({ internetIdentity: null })
-
         if ("err" in registerResult) {
           console.warn("User registration warning:", registerResult.err)
-          // Continue anyway - user might already be registered
         }
       } catch (registerError) {
         console.warn("User registration failed:", registerError)
-        // Continue anyway - the main authentication succeeded
       }
 
       set({
         principal: principal.toString(),
         walletType: "ii",
         authClient,
-        agent,
+        identity,
         isLoading: false,
       })
     } catch (error) {
@@ -234,38 +159,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     const { authClient, walletType } = get()
+    
+    if (walletType === "plug" && window.ic?.plug) {
+      await window.ic.plug.disconnect()
+    } else if (authClient) {
+      await authClient.logout()
+    }
 
-    try {
-      if (walletType === "plug" && window.ic?.plug) {
-        await window.ic.plug.disconnect()
-      } else if (walletType === "ii" && authClient) {
-        await authClient.logout()
-      }
+    set({
+      principal: null,
+      walletType: null,
+      authClient: null,
+      identity: null,
+    })
+  },
 
+  checkAuth: async () => {
+    const state = await getAuthState()
+    if (state.type) {
       set({
-        principal: null,
-        walletType: null,
-        authClient: null,
-        agent: null,
+        principal: state.identity.toString(),
+        walletType: state.type,
+        authClient: 'authClient' in state ? state.authClient : null,
+        identity: state.identity,
       })
-    } catch (error) {
-      console.error("Logout failed:", error)
     }
   },
 }))
-
-// Extend window interface for Plug wallet
-declare global {
-  interface Window {
-    ic?: {
-      plug?: {
-        requestConnect: (options: any) => Promise<boolean>
-        isConnected: () => Promise<boolean>
-        disconnect: () => Promise<void>
-        agent: any
-        createActor: (options: any) => Promise<any>
-        requestTransfer: (options: any) => Promise<any>
-      }
-    }
-  }
-}

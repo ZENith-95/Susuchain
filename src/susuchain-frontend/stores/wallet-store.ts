@@ -2,14 +2,15 @@
 
 import { create } from "zustand"
 import { useAuthStore } from "./auth-store"
-import { Actor } from "@dfinity/agent"
+import { IDL } from "@dfinity/candid"
+import { createActor, createIdlFactory } from "@/lib/createActor"
 
 interface Transaction {
   id: string
   transactionType: "deposit" | "withdraw" | "groupContribution" | "groupPayout"
   amount: bigint
   status: "pending" | "completed" | "failed" | "cancelled"
-  timestamp: bigint
+  timestamp: number
   reference?: string
   groupId?: string
 }
@@ -18,12 +19,78 @@ interface WalletState {
   balance: bigint
   transactions: Transaction[]
   isLoading: boolean
+  fetchWalletData: () => Promise<void>
   deposit: (amount: number) => Promise<void>
   withdraw: (amount: number) => Promise<void>
-  fetchWalletData: () => Promise<void>
 }
 
 const SUSUCHAIN_CANISTER_ID = process.env.NEXT_PUBLIC_SUSUCHAIN_CANISTER_ID || "rdmx6-jaaaa-aaaah-qdrva-cai"
+
+// Create IDL factories for wallet operations
+const userDataIdlFactory = createIdlFactory((IDL) => ({
+  getUser: IDL.Func(
+    [],
+    [IDL.Variant({ ok: IDL.Record({ balance: IDL.Nat }), err: IDL.Text })],
+    ["query"],
+  ),
+  getUserTransactions: IDL.Func(
+    [],
+    [
+      IDL.Variant({
+        ok: IDL.Vec(
+          IDL.Record({
+            id: IDL.Text,
+            transactionType: IDL.Variant({
+              deposit: IDL.Null,
+              withdraw: IDL.Null,
+              groupContribution: IDL.Null,
+              groupPayout: IDL.Null,
+            }),
+            amount: IDL.Nat,
+            status: IDL.Variant({
+              pending: IDL.Null,
+              completed: IDL.Null,
+              failed: IDL.Null,
+              cancelled: IDL.Null,
+            }),
+            timestamp: IDL.Int,
+            reference: IDL.Opt(IDL.Text),
+            groupId: IDL.Opt(IDL.Text),
+          }),
+        ),
+        err: IDL.Text,
+      }),
+    ],
+    ["query"],
+  ),
+}))
+
+const depositIdlFactory = createIdlFactory((IDL) => ({
+  deposit: IDL.Func(
+    [
+      IDL.Record({
+        amount: IDL.Nat,
+        paymentMethod: IDL.Variant({ crypto: IDL.Null }),
+        reference: IDL.Opt(IDL.Text),
+      }),
+    ],
+    [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
+    [],
+  ),
+}))
+
+const withdrawIdlFactory = createIdlFactory((IDL) => ({
+  withdraw: IDL.Func(
+    [
+      IDL.Record({
+        amount: IDL.Nat,
+        paymentMethod: IDL.Variant({ crypto: IDL.Null }),
+      }),
+    ],
+    [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
+    [],
+  ),
+}))
 
 export const useWalletStore = create<WalletState>((set, get) => ({
   balance: BigInt(0),
@@ -34,89 +101,14 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     set({ isLoading: true })
 
     try {
-      const { principal, walletType, agent } = useAuthStore.getState()
-      if (!principal) throw new Error("Not authenticated")
+      const { identity } = useAuthStore.getState()
+      if (!identity) throw new Error("Not authenticated")
 
-      let actor: any
-
-      if (walletType === "plug" && window.ic?.plug) {
-        actor = await window.ic.plug.createActor({
-          canisterId: SUSUCHAIN_CANISTER_ID,
-          interfaceFactory: ({ IDL }) => {
-            return IDL.Service({
-              getUser: IDL.Func([], [IDL.Variant({ ok: IDL.Record({ balance: IDL.Nat }), err: IDL.Text })], ["query"]),
-              getUserTransactions: IDL.Func(
-                [],
-                [
-                  IDL.Variant({
-                    ok: IDL.Vec(
-                      IDL.Record({
-                        id: IDL.Text,
-                        transactionType: IDL.Variant({
-                          deposit: IDL.Null,
-                          withdraw: IDL.Null,
-                          groupContribution: IDL.Null,
-                          groupPayout: IDL.Null,
-                        }),
-                        amount: IDL.Nat,
-                        status: IDL.Variant({
-                          pending: IDL.Null,
-                          completed: IDL.Null,
-                          failed: IDL.Null,
-                          cancelled: IDL.Null,
-                        }),
-                        timestamp: IDL.Int,
-                        reference: IDL.Opt(IDL.Text),
-                        groupId: IDL.Opt(IDL.Text),
-                      }),
-                    ),
-                    err: IDL.Text,
-                  }),
-                ],
-                ["query"],
-              ),
-            })
-          },
-        })
-      } else if (walletType === "ii" && agent) {
-        actor = Actor.createActor(
-          ({ IDL }) =>
-            IDL.Service({
-              getUser: IDL.Func([], [IDL.Variant({ ok: IDL.Record({ balance: IDL.Nat }), err: IDL.Text })], ["query"]),
-              getUserTransactions: IDL.Func(
-                [],
-                [
-                  IDL.Variant({
-                    ok: IDL.Vec(
-                      IDL.Record({
-                        id: IDL.Text,
-                        transactionType: IDL.Variant({
-                          deposit: IDL.Null,
-                          withdraw: IDL.Null,
-                          groupContribution: IDL.Null,
-                          groupPayout: IDL.Null,
-                        }),
-                        amount: IDL.Nat,
-                        status: IDL.Variant({
-                          pending: IDL.Null,
-                          completed: IDL.Null,
-                          failed: IDL.Null,
-                          cancelled: IDL.Null,
-                        }),
-                        timestamp: IDL.Int,
-                        reference: IDL.Opt(IDL.Text),
-                        groupId: IDL.Opt(IDL.Text),
-                      }),
-                    ),
-                    err: IDL.Text,
-                  }),
-                ],
-                ["query"],
-              ),
-            }),
-          { agent, canisterId: SUSUCHAIN_CANISTER_ID },
-        )
-      }
+      const actor = await createActor<any>({
+        canisterId: SUSUCHAIN_CANISTER_ID,
+        idlFactory: userDataIdlFactory,
+        identity,
+      })
 
       const [userResult, transactionsResult] = await Promise.all([actor.getUser(), actor.getUserTransactions()])
 
@@ -130,7 +122,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
           transactionType: Object.keys(tx.transactionType)[0] as any,
           amount: tx.amount,
           status: Object.keys(tx.status)[0] as any,
-          timestamp: tx.timestamp,
+          timestamp: Number(tx.timestamp) / 1000000, // Convert nanoseconds to milliseconds
           reference: tx.reference[0] || undefined,
           groupId: tx.groupId[0] || undefined,
         }))
@@ -146,34 +138,18 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   deposit: async (amount: number) => {
     try {
       const { walletType } = useAuthStore.getState()
-      const amountE8s = BigInt(Math.floor(amount * 100000000)) // Convert to e8s
+      const amountE8s = BigInt(Math.floor(amount * 100000000))
 
       if (walletType === "plug" && window.ic?.plug) {
-        // Request ICP transfer via Plug
         const transferResult = await window.ic.plug.requestTransfer({
           to: SUSUCHAIN_CANISTER_ID,
           amount: Number(amountE8s),
         })
 
         if (transferResult.height) {
-          // Call deposit on backend
-          const actor = await window.ic.plug.createActor({
+          const actor = await createActor<any>({
             canisterId: SUSUCHAIN_CANISTER_ID,
-            interfaceFactory: ({ IDL }) => {
-              return IDL.Service({
-                deposit: IDL.Func(
-                  [
-                    IDL.Record({
-                      amount: IDL.Nat,
-                      paymentMethod: IDL.Variant({ crypto: IDL.Null }),
-                      reference: IDL.Opt(IDL.Text),
-                    }),
-                  ],
-                  [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
-                  [],
-                ),
-              })
-            },
+            idlFactory: depositIdlFactory,
           })
 
           const result = await actor.deposit({
@@ -186,7 +162,6 @@ export const useWalletStore = create<WalletState>((set, get) => ({
             throw new Error(result.err)
           }
 
-          // Refresh wallet data
           await get().fetchWalletData()
         }
       }
@@ -198,47 +173,16 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
   withdraw: async (amount: number) => {
     try {
-      const { walletType, agent } = useAuthStore.getState()
+      const { identity } = useAuthStore.getState()
+      if (!identity) throw new Error("Not authenticated")
+
       const amountE8s = BigInt(Math.floor(amount * 100000000))
 
-      let actor: any
-
-      if (walletType === "plug" && window.ic?.plug) {
-        actor = await window.ic.plug.createActor({
-          canisterId: SUSUCHAIN_CANISTER_ID,
-          interfaceFactory: ({ IDL }) => {
-            return IDL.Service({
-              withdraw: IDL.Func(
-                [
-                  IDL.Record({
-                    amount: IDL.Nat,
-                    paymentMethod: IDL.Variant({ crypto: IDL.Null }),
-                  }),
-                ],
-                [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
-                [],
-              ),
-            })
-          },
-        })
-      } else if (walletType === "ii" && agent) {
-        actor = Actor.createActor(
-          ({ IDL }) =>
-            IDL.Service({
-              withdraw: IDL.Func(
-                [
-                  IDL.Record({
-                    amount: IDL.Nat,
-                    paymentMethod: IDL.Variant({ crypto: IDL.Null }),
-                  }),
-                ],
-                [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
-                [],
-              ),
-            }),
-          { agent, canisterId: SUSUCHAIN_CANISTER_ID },
-        )
-      }
+      const actor = await createActor<any>({
+        canisterId: SUSUCHAIN_CANISTER_ID,
+        idlFactory: withdrawIdlFactory,
+        identity,
+      })
 
       const result = await actor.withdraw({
         amount: amountE8s,
@@ -249,7 +193,6 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         throw new Error(result.err)
       }
 
-      // Refresh wallet data
       await get().fetchWalletData()
     } catch (error) {
       console.error("Withdraw failed:", error)

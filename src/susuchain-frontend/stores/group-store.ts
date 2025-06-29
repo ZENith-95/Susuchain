@@ -2,7 +2,8 @@
 
 import { create } from "zustand"
 import { useAuthStore } from "./auth-store"
-import { Actor } from "@dfinity/agent"
+import { IDL } from "@dfinity/candid"
+import { createActor, createIdlFactory } from "@/lib/createActor"
 
 interface Member {
   userId: string
@@ -57,6 +58,83 @@ interface GroupState {
 
 const SUSUCHAIN_CANISTER_ID = process.env.NEXT_PUBLIC_SUSUCHAIN_CANISTER_ID || "rdmx6-jaaaa-aaaah-qdrva-cai"
 
+// Create IDL factories for group operations
+const createGroupIdlFactory = createIdlFactory((IDL) => ({
+  createGroup: IDL.Func(
+    [
+      IDL.Record({
+        name: IDL.Text,
+        description: IDL.Text,
+        contributionAmount: IDL.Nat,
+        maxMembers: IDL.Nat,
+        frequency: IDL.Variant({
+          daily: IDL.Null,
+          weekly: IDL.Null,
+          monthly: IDL.Null,
+        }),
+        startDate: IDL.Int,
+      }),
+    ],
+    [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
+    [],
+  ),
+}))
+
+const joinGroupIdlFactory = createIdlFactory((IDL) => ({
+  joinGroup: IDL.Func(
+    [IDL.Record({ groupCode: IDL.Text })],
+    [IDL.Variant({ ok: IDL.Null, err: IDL.Text })],
+    [],
+  ),
+}))
+
+const userGroupsIdlFactory = createIdlFactory((IDL) => ({
+  getUserGroups: IDL.Func(
+    [],
+    [IDL.Variant({ ok: IDL.Vec(IDL.Record({})), err: IDL.Text })],
+    ["query"],
+  ),
+}))
+
+const availableGroupsIdlFactory = createIdlFactory((IDL) => ({
+  getAvailableGroups: IDL.Func(
+    [],
+    [IDL.Variant({ ok: IDL.Vec(IDL.Record({})), err: IDL.Text })],
+    ["query"],
+  ),
+}))
+
+const groupIdlFactory = createIdlFactory((IDL) => ({
+  getGroup: IDL.Func(
+    [IDL.Text],
+    [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
+    ["query"],
+  ),
+}))
+
+const contributeIdlFactory = createIdlFactory((IDL) => ({
+  contribute: IDL.Func(
+    [
+      IDL.Record({
+        groupId: IDL.Text,
+        amount: IDL.Nat,
+        paymentMethod: IDL.Variant({ crypto: IDL.Null }),
+        reference: IDL.Opt(IDL.Text),
+      }),
+    ],
+    [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
+    [],
+  ),
+}))
+
+const withdrawPayoutIdlFactory = createIdlFactory((IDL) => ({
+  withdrawPayout: IDL.Func(
+    [IDL.Text],
+    [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
+    [],
+  ),
+}))
+
 export const useGroupStore = create<GroupState>((set, get) => ({
   groups: [],
   availableGroups: [],
@@ -65,61 +143,14 @@ export const useGroupStore = create<GroupState>((set, get) => ({
 
   createGroup: async (request: CreateGroupRequest) => {
     try {
-      const { walletType, agent } = useAuthStore.getState()
-      let actor: any
+      const { identity } = useAuthStore.getState()
+      if (!identity) throw new Error("Not authenticated")
 
-      if (walletType === "plug" && window.ic?.plug) {
-        actor = await window.ic.plug.createActor({
-          canisterId: SUSUCHAIN_CANISTER_ID,
-          interfaceFactory: ({ IDL }) => {
-            return IDL.Service({
-              createGroup: IDL.Func(
-                [
-                  IDL.Record({
-                    name: IDL.Text,
-                    description: IDL.Text,
-                    contributionAmount: IDL.Nat,
-                    maxMembers: IDL.Nat,
-                    frequency: IDL.Variant({
-                      daily: IDL.Null,
-                      weekly: IDL.Null,
-                      monthly: IDL.Null,
-                    }),
-                    startDate: IDL.Int,
-                  }),
-                ],
-                [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
-                [],
-              ),
-            })
-          },
-        })
-      } else if (walletType === "ii" && agent) {
-        actor = Actor.createActor(
-          ({ IDL }) =>
-            IDL.Service({
-              createGroup: IDL.Func(
-                [
-                  IDL.Record({
-                    name: IDL.Text,
-                    description: IDL.Text,
-                    contributionAmount: IDL.Nat,
-                    maxMembers: IDL.Nat,
-                    frequency: IDL.Variant({
-                      daily: IDL.Null,
-                      weekly: IDL.Null,
-                      monthly: IDL.Null,
-                    }),
-                    startDate: IDL.Int,
-                  }),
-                ],
-                [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
-                [],
-              ),
-            }),
-          { agent, canisterId: SUSUCHAIN_CANISTER_ID },
-        )
-      }
+      const actor = await createActor<any>({
+        canisterId: SUSUCHAIN_CANISTER_ID,
+        idlFactory: createGroupIdlFactory,
+        identity,
+      })
 
       const result = await actor.createGroup({
         name: request.name,
@@ -144,43 +175,14 @@ export const useGroupStore = create<GroupState>((set, get) => ({
 
   joinGroup: async (groupId: string) => {
     try {
-      const { walletType, agent } = useAuthStore.getState()
-      let actor: any
+      const { identity } = useAuthStore.getState()
+      if (!identity) throw new Error("Not authenticated")
 
-      if (walletType === "plug" && window.ic?.plug) {
-        actor = await window.ic.plug.createActor({
-          canisterId: SUSUCHAIN_CANISTER_ID,
-          interfaceFactory: ({ IDL }) => {
-            return IDL.Service({
-              joinGroup: IDL.Func(
-                [
-                  IDL.Record({
-                    groupCode: IDL.Text,
-                  }),
-                ],
-                [IDL.Variant({ ok: IDL.Null, err: IDL.Text })],
-                [],
-              ),
-            })
-          },
-        })
-      } else if (walletType === "ii" && agent) {
-        actor = Actor.createActor(
-          ({ IDL }) =>
-            IDL.Service({
-              joinGroup: IDL.Func(
-                [
-                  IDL.Record({
-                    groupCode: IDL.Text,
-                  }),
-                ],
-                [IDL.Variant({ ok: IDL.Null, err: IDL.Text })],
-                [],
-              ),
-            }),
-          { agent, canisterId: SUSUCHAIN_CANISTER_ID },
-        )
-      }
+      const actor = await createActor<any>({
+        canisterId: SUSUCHAIN_CANISTER_ID,
+        idlFactory: joinGroupIdlFactory,
+        identity,
+      })
 
       const result = await actor.joinGroup({ groupCode: groupId })
 
@@ -200,32 +202,18 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     set({ isLoading: true })
 
     try {
-      const { walletType, agent } = useAuthStore.getState()
-      let actor: any
+      const { identity } = useAuthStore.getState()
+      if (!identity) throw new Error("Not authenticated")
 
-      if (walletType === "plug" && window.ic?.plug) {
-        actor = await window.ic.plug.createActor({
-          canisterId: SUSUCHAIN_CANISTER_ID,
-          interfaceFactory: ({ IDL }) => {
-            return IDL.Service({
-              getUserGroups: IDL.Func([], [IDL.Variant({ ok: IDL.Vec(IDL.Record({})), err: IDL.Text })], ["query"]),
-            })
-          },
-        })
-      } else if (walletType === "ii" && agent) {
-        actor = Actor.createActor(
-          ({ IDL }) =>
-            IDL.Service({
-              getUserGroups: IDL.Func([], [IDL.Variant({ ok: IDL.Vec(IDL.Record({})), err: IDL.Text })], ["query"]),
-            }),
-          { agent, canisterId: SUSUCHAIN_CANISTER_ID },
-        )
-      }
+      const actor = await createActor<any>({
+        canisterId: SUSUCHAIN_CANISTER_ID,
+        idlFactory: userGroupsIdlFactory,
+        identity,
+      })
 
       const result = await actor.getUserGroups()
 
       if ("ok" in result) {
-        // Transform the result to match our Group interface
         set({ groups: result.ok || [] })
       }
     } catch (error) {
@@ -237,27 +225,20 @@ export const useGroupStore = create<GroupState>((set, get) => ({
 
   fetchAvailableGroups: async () => {
     try {
-      const { walletType, agent } = useAuthStore.getState()
-      let actor: any
+      const { identity } = useAuthStore.getState()
+      if (!identity) throw new Error("Not authenticated")
 
-      if (walletType === "plug" && window.ic?.plug) {
-        actor = await window.ic.plug.createActor({
-          canisterId: SUSUCHAIN_CANISTER_ID,
-          interfaceFactory: ({ IDL }) => {
-            return IDL.Service({
-              // This would need to be implemented in the backend
-              getAvailableGroups: IDL.Func(
-                [],
-                [IDL.Variant({ ok: IDL.Vec(IDL.Record({})), err: IDL.Text })],
-                ["query"],
-              ),
-            })
-          },
-        })
+      const actor = await createActor<any>({
+        canisterId: SUSUCHAIN_CANISTER_ID,
+        idlFactory: availableGroupsIdlFactory,
+        identity,
+      })
+
+      const result = await actor.getAvailableGroups()
+
+      if ("ok" in result) {
+        set({ availableGroups: result.ok || [] })
       }
-
-      // For now, return empty array as this endpoint needs to be implemented
-      set({ availableGroups: [] })
     } catch (error) {
       console.error("Failed to fetch available groups:", error)
     }
@@ -265,27 +246,14 @@ export const useGroupStore = create<GroupState>((set, get) => ({
 
   fetchGroup: async (groupId: string) => {
     try {
-      const { walletType, agent } = useAuthStore.getState()
-      let actor: any
+      const { identity } = useAuthStore.getState()
+      if (!identity) throw new Error("Not authenticated")
 
-      if (walletType === "plug" && window.ic?.plug) {
-        actor = await window.ic.plug.createActor({
-          canisterId: SUSUCHAIN_CANISTER_ID,
-          interfaceFactory: ({ IDL }) => {
-            return IDL.Service({
-              getGroup: IDL.Func([IDL.Text], [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })], ["query"]),
-            })
-          },
-        })
-      } else if (walletType === "ii" && agent) {
-        actor = Actor.createActor(
-          ({ IDL }) =>
-            IDL.Service({
-              getGroup: IDL.Func([IDL.Text], [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })], ["query"]),
-            }),
-          { agent, canisterId: SUSUCHAIN_CANISTER_ID },
-        )
-      }
+      const actor = await createActor<any>({
+        canisterId: SUSUCHAIN_CANISTER_ID,
+        idlFactory: groupIdlFactory,
+        identity,
+      })
 
       const result = await actor.getGroup(groupId)
 
@@ -303,32 +271,15 @@ export const useGroupStore = create<GroupState>((set, get) => ({
       const amountE8s = BigInt(Math.floor(amount * 100000000))
 
       if (walletType === "plug" && window.ic?.plug) {
-        // First transfer ICP
         const transferResult = await window.ic.plug.requestTransfer({
           to: SUSUCHAIN_CANISTER_ID,
           amount: Number(amountE8s),
         })
 
         if (transferResult.height) {
-          // Then call contribute
-          const actor = await window.ic.plug.createActor({
+          const actor = await createActor<any>({
             canisterId: SUSUCHAIN_CANISTER_ID,
-            interfaceFactory: ({ IDL }) => {
-              return IDL.Service({
-                contribute: IDL.Func(
-                  [
-                    IDL.Record({
-                      groupId: IDL.Text,
-                      amount: IDL.Nat,
-                      paymentMethod: IDL.Variant({ crypto: IDL.Null }),
-                      reference: IDL.Opt(IDL.Text),
-                    }),
-                  ],
-                  [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })],
-                  [],
-                ),
-              })
-            },
+            idlFactory: contributeIdlFactory,
           })
 
           const result = await actor.contribute({
@@ -356,27 +307,14 @@ export const useGroupStore = create<GroupState>((set, get) => ({
 
   withdrawPayout: async (groupId: string) => {
     try {
-      const { walletType, agent } = useAuthStore.getState()
-      let actor: any
+      const { identity } = useAuthStore.getState()
+      if (!identity) throw new Error("Not authenticated")
 
-      if (walletType === "plug" && window.ic?.plug) {
-        actor = await window.ic.plug.createActor({
-          canisterId: SUSUCHAIN_CANISTER_ID,
-          interfaceFactory: ({ IDL }) => {
-            return IDL.Service({
-              withdrawPayout: IDL.Func([IDL.Text], [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })], []),
-            })
-          },
-        })
-      } else if (walletType === "ii" && agent) {
-        actor = Actor.createActor(
-          ({ IDL }) =>
-            IDL.Service({
-              withdrawPayout: IDL.Func([IDL.Text], [IDL.Variant({ ok: IDL.Record({}), err: IDL.Text })], []),
-            }),
-          { agent, canisterId: SUSUCHAIN_CANISTER_ID },
-        )
-      }
+      const actor = await createActor<any>({
+        canisterId: SUSUCHAIN_CANISTER_ID,
+        idlFactory: withdrawPayoutIdlFactory,
+        identity,
+      })
 
       const result = await actor.withdrawPayout(groupId)
 

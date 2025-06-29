@@ -8,7 +8,8 @@ interface Transaction {
   transactionType: "deposit" | "withdraw" | "groupContribution" | "groupPayout"
   amount: bigint
   status: "pending" | "completed" | "failed" | "cancelled"
-  timestamp: bigint
+  timestamp: number
+  reference?: string
   groupId?: string
 }
 

@@ -3,16 +3,28 @@
   "canisters": {
     "susuchain": {
       "type": "motoko",
-      "main": "src/susuchain-app-backend/susuchain.mo"
+      "main": "src/susuchain-app-backend/susuchain.mo",
+      "declarations": {
+        "output": "src/declarations/susuchain",
+        "node_compatibility": true
+      }
     },
     "group-contributions": {
       "type": "motoko",
-      "main": "src/susuchain-app-backend/susu-group-contributions.mo"
+      "main": "src/susuchain-app-backend/susu-group-contributions.mo",
+      "declarations": {
+        "output": "src/declarations/group-contributions",
+        "node_compatibility": true
+      }
     },
     "token": {
       "type": "custom",
       "candid": "https://raw.githubusercontent.com/dfinity/ic/2e3589427cd9648d4edaebc1b96b5daf8fdd94d8/rs/rosetta-api/icrc1/ledger/ledger.did",
-      "wasm": "https://download.dfinity.systems/ic/2e3589427cd9648d4edaebc1b96b5daf8fdd94d8/canisters/ic-icrc1-ledger.wasm.gz"
+      "wasm": "https://download.dfinity.systems/ic/2e3589427cd9648d4edaebc1b96b5daf8fdd94d8/canisters/ic-icrc1-ledger.wasm.gz",
+      "declarations": {
+        "output": "src/declarations/token",
+        "node_compatibility": true
+      }
     },
     "internet_identity": {
       "type": "custom",
@@ -20,13 +32,16 @@
       "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz",
       "id": "rdmx6-jaaaa-aaaaa-aaadq-cai"
     },
-    "susuchain-app-react": {
+    "frontend": {
       "type": "assets",
       "source": [
-        "src/susuchain-app-react/dist"
+        "src/susuchain-frontend/out"
+      ],
+      "build": [
+        "cd src/susuchain-frontend && npm run build"
       ],
       "declarations": {
-        "output": "src/declarations/susuchain-app-react",
+        "output": "src/declarations/frontend",
         "node_compatibility": true
       }
     }
@@ -34,7 +49,8 @@
   "output_env_file": ".env",
   "defaults": {
     "build": {
-      "args": ""
+      "args": "",
+      "packtool": "mops sources"
     }
   }
 }

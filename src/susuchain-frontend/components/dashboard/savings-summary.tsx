@@ -6,7 +6,10 @@ interface Transaction {
   id: string
   transactionType: "deposit" | "withdraw" | "groupContribution" | "groupPayout"
   amount: bigint
-  timestamp: bigint
+  status: "pending" | "completed" | "failed" | "cancelled"
+  timestamp: number
+  reference?: string
+  groupId?: string
 }
 
 interface SavingsSummaryProps {

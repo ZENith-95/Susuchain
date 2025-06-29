@@ -95,4 +95,227 @@ module {
         icrc2_transfer_from : shared TransferFromArgs -> async Result_2;
     };
 
+    public type UserId = Principal;
+    
+    public type User = {
+        id: UserId;
+        principal: Principal;
+        walletType: WalletType;
+        balance: Nat;
+        createdAt: Int;
+        updatedAt: Int;
+    };
+
+    public type WalletType = {
+        #plug;
+        #internetIdentity;
+    };
+
+    // Group Types
+    public type GroupId = Text;
+    
+    public type Group = {
+        id: GroupId;
+        name: Text;
+        description: Text;
+        admin: UserId;
+        members: [Member];
+        contributionAmount: Nat;
+        frequency: ContributionFrequency;
+        maxMembers: Nat;
+        currentCycle: Nat;
+        totalCycles: Nat;
+        startDate: Int;
+        nextPayoutDate: Int;
+        isActive: Bool;
+        createdAt: Int;
+        updatedAt: Int;
+    };
+
+    public type Member = {
+        userId: UserId;
+        joinedAt: Int;
+        payoutOrder: Nat;
+        hasReceivedPayout: Bool;
+        payoutDate: ?Int;
+        contributionStatus: ContributionStatus;
+        paymentMethod: PaymentMethod; // Add payment method for payout
+    };
+
+  
+    public type ContributionStatus = {
+        #pending;
+        #paid;
+        #overdue;
+    };
+
+    // Transaction Types
+    public type TransactionId = Text;
+    
+    public type Transaction = {
+        id: TransactionId;
+        userId: UserId;
+        transactionType: TransactionType;
+        amount: Nat;
+        status: TransactionStatus;
+        method: PaymentMethod;
+        groupId: ?GroupId;
+        timestamp: Int;
+        reference: ?Text;
+    };
+
+    public type TransactionType = {
+        #deposit;
+        #withdraw;
+        #groupContribution;
+        #groupPayout;
+    };
+
+    public type TransactionStatus = {
+        #pending;
+        #completed;
+        #failed;
+        #cancelled;
+    };
+
+    public type PaymentMethod = {
+        #mobileMoney: MobileMoneyProvider;
+        #bankTransfer;
+        #crypto;
+    };
+
+    public type MobileMoneyProvider = {
+        #mtn;
+        #vodafone;
+        #airtelTigo;
+    };
+
+    // Payment Types
+    public type PaymentRequest = {
+        id: Text;
+        userId: Principal;
+        amount: Nat;
+        currency: Text;
+        provider: MobileMoneyProvider;
+        phoneNumber: Text;
+        status: PaymentStatus;
+        reference: Text;
+        createdAt: Int;
+        completedAt: ?Int;
+    };
+
+    public type PaymentStatus = {
+        #pending;
+        #processing;
+        #completed;
+        #failed;
+        #cancelled;
+    };
+
+    // Notification Types
+    public type Notification = {
+        id: Text;
+        userId: Principal;
+        title: Text;
+        message: Text;
+        notificationType: NotificationType;
+        isRead: Bool;
+        createdAt: Int;
+        data: ?NotificationData;
+    };
+
+    public type NotificationType = {
+        #contributionReminder;
+        #payoutAvailable;
+        #groupInvite;
+        #paymentConfirmation;
+        #systemAlert;
+    };
+
+    public type NotificationData = {
+        groupId: ?Text;
+        amount: ?Nat;
+        dueDate: ?Int;
+    };
+
+    // API Response Types
+    public type Result<T, E> = {
+        #ok: T;
+        #err: E;
+    };
+
+    public type ApiError = {
+        #notFound: Text;
+        #unauthorized: Text;
+        #badRequest: Text;
+        #internalError: Text;
+        #insufficientFunds: Text;
+        #groupFull: Text;
+        #alreadyMember: Text;
+    };
+
+    // Request Types
+  
+
+    public type JoinGroupRequest = {
+        groupCode: GroupId;
+    };
+
+    public type ContributeRequest = {
+        groupId: GroupId;
+        amount: Nat;
+        paymentMethod: PaymentMethod;
+        reference: ?Text;
+    };
+
+    public type WithdrawRequest = {
+        amount: Nat;
+        paymentMethod: PaymentMethod;
+    };
+
+    public type DepositRequest = {
+        amount: Nat;
+        paymentMethod: PaymentMethod;
+        reference: ?Text;
+    };
+
+    public type InitiatePaymentRequest = {
+        amount: Nat;
+        phoneNumber: Text;
+        provider: MobileMoneyProvider;
+        currency: Text;
+    };
+
+    public type PaymentResponse = {
+        paymentId: Text;
+        reference: Text;
+        status: PaymentStatus;
+        authorizationUrl: ?Text;
+    };
+
+    // Dashboard Types
+    public type DashboardData = {
+        user: User;
+        totalBalance: Nat;
+        activeGroups: [Group];
+        upcomingActivities: [Activity];
+        recentTransactions: [Transaction];
+    };
+
+    public type Activity = {
+        activityType: ActivityType;
+        groupId: ?GroupId;
+        groupName: ?Text;
+        amount: Nat;
+        dueDate: Int;
+        description: Text;
+    };
+
+    public type ActivityType = {
+        #contributionDue;
+        #payoutAvailable;
+        #groupStarting;
+        #cycleComplete;
+    };
+
 };

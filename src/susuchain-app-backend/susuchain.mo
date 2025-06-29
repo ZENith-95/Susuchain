@@ -406,15 +406,15 @@ actor SusuChain {
                 let newBalance = if (isDeposit) {
                     user.balance + amount
                 } else {
-                    if (amount > user.balance) {
-                        return #err(#insufficientFunds("Insufficient balance")); // Return error for withdrawal exceeding balance
-                    } else {
-                        // Ensure the subtraction does not underflow for Nat type
-                        if (user.balance < amount) {
-                            return #err(#internalError("Balance underflow during withdrawal"));
-                        };
-                        user.balance - amount
-                    }
+                    let currentBalanceInt : Int = user.balance;
+                    let amountInt : Int = amount;
+                    let newBalanceInt = currentBalanceInt - amountInt;
+                    
+                    if (newBalanceInt < 0) {
+                        return #err(#insufficientFunds("Insufficient balance"));
+                    };
+                    
+                    Int.abs(newBalanceInt)
                 };
                 
                 let updatedUser = {
