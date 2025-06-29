@@ -137,7 +137,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
   deposit: async (amount: number) => {
     try {
-      const { walletType } = useAuthStore.getState()
+      const { walletType, identity } = useAuthStore.getState()
+      if (!identity) throw new Error("Not authenticated")
       const amountE8s = BigInt(Math.floor(amount * 100000000))
 
       if (walletType === "plug" && window.ic?.plug) {
@@ -150,6 +151,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
           const actor = await createActor<any>({
             canisterId: SUSUCHAIN_CANISTER_ID,
             idlFactory: depositIdlFactory,
+            identity,
           })
 
           const result = await actor.deposit({

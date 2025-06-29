@@ -25,15 +25,18 @@ export function ConnectionStatus() {
           return
         }
 
-        // Simple connectivity check
-        const response = await fetch(`https://ic0.app/api/v2/canister/${canisterId}/query`, {
-          method: "POST",
-          headers: { "Content-Type": "application/cbor" },
-          body: new ArrayBuffer(0),
+        // Use the IC management canister endpoint
+        const response = await fetch(`https://${canisterId}.raw.ic0.app/_/raw/status`, {
+          method: "GET",
         })
 
-        setCanisterStatus(response.ok ? "connected" : "error")
-      } catch {
+        if (!response.ok) {
+          throw new Error('Canister status check failed')
+        }
+
+        setCanisterStatus("connected")
+      } catch (error) {
+        console.error("Canister status check failed:", error)
         setCanisterStatus("error")
       }
     }
