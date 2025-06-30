@@ -19,11 +19,13 @@
     },
     "token": {
       "type": "custom",
-      "candid": "https://raw.githubusercontent.com/dfinity/ic/2e3589427cd9648d4edaebc1b96b5daf8fdd94d8/rs/rosetta-api/icrc1/ledger/ledger.did",
-      "wasm": "https://download.dfinity.systems/ic/2e3589427cd9648d4edaebc1b96b5daf8fdd94d8/canisters/ic-icrc1-ledger.wasm.gz",
-      "declarations": {
-        "output": "src/declarations/token",
-        "node_compatibility": true
+      "candid": "src/ledger/ledger.did",
+      "wasm": "src/ledger/ledger.wasm.gz",
+      "remote": {
+        "id": {
+          "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai",
+          "local": "bd3sg-teaaa-aaaaa-qaaba-cai"
+        }
       }
     },
     "internet_identity": {
@@ -51,6 +53,15 @@
     "build": {
       "args": "",
       "packtool": "mops sources"
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943"
+    },
+    "ic": {
+      "providers": ["https://ic0.app"],
+      "type": "persistent"
     }
   }
 }

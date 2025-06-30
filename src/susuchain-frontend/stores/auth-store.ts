@@ -18,8 +18,8 @@ interface AuthState {
   checkAuth: () => Promise<void>
 }
 
-const SUSUCHAIN_CANISTER_ID = process.env.NEXT_PUBLIC_SUSUCHAIN_CANISTER_ID || "rrkah-fqaaa-aaaah-qcwwa-cai"
-const INTERNET_IDENTITY_CANISTER_ID = process.env.NEXT_PUBLIC_INTERNET_IDENTITY_CANISTER_ID || "rdmx6-jaaaa-aaaah-qdrva-cai"
+const SUSUCHAIN_CANISTER_ID = process.env.NEXT_PUBLIC_SUSUCHAIN_CANISTER_ID || "umunu-kh777-77774-qaaca-cai"
+const INTERNET_IDENTITY_CANISTER_ID = process.env.NEXT_PUBLIC_INTERNET_IDENTITY_CANISTER_ID || "uzt4z-lp777-77774-qaabq-cai"
 
 const validateCanisterId = (canisterId: string): boolean => {
   try {

@@ -24,7 +24,7 @@ interface WalletState {
   withdraw: (amount: number) => Promise<void>
 }
 
-const SUSUCHAIN_CANISTER_ID = process.env.NEXT_PUBLIC_SUSUCHAIN_CANISTER_ID || "rdmx6-jaaaa-aaaah-qdrva-cai"
+const SUSUCHAIN_CANISTER_ID = process.env.NEXT_PUBLIC_SUSUCHAIN_CANISTER_ID || "umunu-kh777-77774-qaaca-cai"
 
 // Create IDL factories for wallet operations
 const userDataIdlFactory = createIdlFactory((IDL) => ({

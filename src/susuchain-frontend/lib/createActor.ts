@@ -1,10 +1,11 @@
 import { Actor, HttpAgent, Identity } from "@dfinity/agent";
 import { IDL } from "@dfinity/candid";
 import { AuthClient } from "@dfinity/auth-client";
+import { Principal } from "@dfinity/principal";
 
 // Environment variables are injected by dfx/next.js config
 const DFX_NETWORK = process.env.DFX_NETWORK || 'local';
-const HOST = DFX_NETWORK === 'ic' ? 'https://ic0.app' : 'http://localhost:4943';
+const HOST = process.env.NEXT_PUBLIC_DFX_FRONTEND_HOST || 'http://localhost:4943';
 
 export interface CreateActorOptions {
   canisterId: string;
@@ -12,34 +13,62 @@ export interface CreateActorOptions {
   identity?: Identity;
 }
 
-export async function createActor<T>({ canisterId, idlFactory, identity }: CreateActorOptions): Promise<T> {
-  // For Plug wallet integration
-  if (window.ic?.plug) {
-    const isConnected = await window.ic.plug.isConnected();
-    if (isConnected) {
-      const actor = await window.ic.plug.createActor({
-        canisterId,
-        interfaceFactory: idlFactory,
-      });
-      return actor as T;
+function validateAndSanitizeCanisterId(canisterId: string): string {
+  try {
+    // Try to parse and re-serialize the Principal ID to ensure it's valid
+    const principal = Principal.fromText(canisterId);
+    return principal.toText();
+  } catch (error) {
+    // If the original ID fails, try to clean it up
+    const cleanId = canisterId.replace(/[^a-zA-Z0-9\-_]/g, '');
+    try {
+      const principal = Principal.fromText(cleanId);
+      return principal.toText();
+    } catch {
+      throw new Error(`Invalid canister ID: ${canisterId}`);
     }
   }
+}
 
-  // For Internet Identity or direct agent usage
-  const agent = new HttpAgent({
-    host: HOST,
-    identity,
-  });
+export async function createActor<T>({ canisterId, idlFactory, identity }: CreateActorOptions): Promise<T> {
+  try {
+    // Validate and sanitize the canister ID
+    const sanitizedCanisterId = validateAndSanitizeCanisterId(canisterId);
+    
+    // For Plug wallet integration
+    if (window.ic?.plug) {
+      const isConnected = await window.ic.plug.isConnected();
+      if (isConnected) {
+        try {
+          return await window.ic.plug.createActor({
+            canisterId: sanitizedCanisterId,
+            interfaceFactory: idlFactory,
+          });
+        } catch (plugError) {
+          console.warn("Plug actor creation failed, falling back to HTTP agent:", plugError);
+        }
+      }
+    }
 
-  // Only fetch root key in development
-  if (DFX_NETWORK !== 'ic') {
-    await agent.fetchRootKey();
+    // For Internet Identity or direct agent usage
+    const agent = new HttpAgent({
+      host: HOST,
+      identity,
+    });
+
+    // Only fetch root key in development
+    if (DFX_NETWORK !== 'ic') {
+      await agent.fetchRootKey();
+    }
+
+    return Actor.createActor<T>(idlFactory, {
+      agent,
+      canisterId: sanitizedCanisterId,
+    });
+  } catch (error) {
+    console.error("Error creating actor:", error);
+    throw error instanceof Error ? error : new Error(String(error));
   }
-
-  return Actor.createActor<T>(idlFactory, {
-    agent,
-    canisterId,
-  });
 }
 
 type ServiceRecord = Record<string, IDL.FuncClass>;

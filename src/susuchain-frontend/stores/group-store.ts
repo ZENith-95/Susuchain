@@ -56,7 +56,7 @@ interface GroupState {
   withdrawPayout: (groupId: string) => Promise<boolean>
 }
 
-const SUSUCHAIN_CANISTER_ID = process.env.NEXT_PUBLIC_SUSUCHAIN_CANISTER_ID || "rdmx6-jaaaa-aaaah-qdrva-cai"
+const SUSUCHAIN_CANISTER_ID = process.env.NEXT_PUBLIC_SUSUCHAIN_CANISTER_ID || "umunu-kh777-77774-qaaca-cai"
 
 // Create IDL factories for group operations
 const createGroupIdlFactory = createIdlFactory((IDL) => ({
